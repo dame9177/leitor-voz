@@ -44,4 +44,7 @@ LEITOR_ENV_FILE=../.env uv run leitor # daemon (tray + mini-player + API on 127.
   - Hover detection widens a flex/grid row item to its row (≤4 children), so a "B)" + text
     alternative is read as one block.
   - The `requestAnimationFrame` throttle was replaced by a timer: rAF doesn't fire in hidden tabs.
+- Audio follows the system default output: the sink is recreated when `QMediaDevices.audioOutputsChanged`
+    fires (Bluetooth headphones) and checked on every new reading; `/status` reports `output`.
+    Fixed 2026-10-08: the sink used to be bound to the startup default forever.
 - Ideas, not done: per-site tuning for Medway's DOM if the heuristics miss; "repeat last" shortcut.

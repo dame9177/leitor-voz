@@ -110,13 +110,18 @@ class Player(QObject):
         self.synth = synth
         self.speed = speed  # read live, so speed changes apply mid-reading
 
-        fmt = QAudioFormat()
-        fmt.setSampleRate(SAMPLE_RATE)
-        fmt.setChannelCount(1)
-        fmt.setSampleFormat(QAudioFormat.SampleFormat.Int16)
-        self.sink = QAudioSink(QMediaDevices.defaultAudioOutput(), fmt, self)
-        self.sink.setBufferSize(int(SAMPLE_RATE * 2 * SINK_BUFFER_SECONDS))
+        self.format = QAudioFormat()
+        self.format.setSampleRate(SAMPLE_RATE)
+        self.format.setChannelCount(1)
+        self.format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+        self.sink: QAudioSink | None = None
+        self.device_id = None
+        self.device_name = ""
         self.io = None
+        self._ensure_sink()
+        # Follow the system default output (e.g. Bluetooth headphones connected later).
+        self.devices = QMediaDevices(self)
+        self.devices.audioOutputsChanged.connect(self._on_outputs_changed)
 
         self.timer = QTimer(self)
         self.timer.setInterval(20)
@@ -145,6 +150,7 @@ class Player(QObject):
         self.flushed = False
         self.job = ReadJob(segments, self.synth, voice, self.queue, self._job_error.emit)
         self.job.start()
+        self._ensure_sink()
         self.io = self.sink.start()
         self._set(state="loading", reading_id=reading_id, error=None,
                   segment_count=len(segments), **self._segment_fields(segments[0].id))
@@ -184,6 +190,29 @@ class Player(QObject):
             self._set(state="playing")
 
     # -- internals -------------------------------------------------------------
+
+    def _ensure_sink(self) -> bool:
+        """(Re)create the sink if the default output device changed. True if recreated."""
+        device = QMediaDevices.defaultAudioOutput()
+        if self.sink is not None and device.id() == self.device_id:
+            return False
+        if self.sink is not None:
+            self.sink.stop()
+            self.sink.deleteLater()
+        self.sink = QAudioSink(device, self.format, self)
+        self.sink.setBufferSize(int(SAMPLE_RATE * 2 * SINK_BUFFER_SECONDS))
+        self.device_id = device.id()
+        self.device_name = device.description()
+        return True
+
+    def _on_outputs_changed(self) -> None:
+        playing = self.io is not None
+        if not self._ensure_sink() or not playing:
+            return
+        # Move the ongoing reading to the new device (loses ~0.3 s already buffered).
+        self.io = self.sink.start()
+        if self.status["state"] == "paused":
+            self.sink.suspend()
 
     def _segment_fields(self, segment_id: str) -> dict:
         for i, seg in enumerate(self.segments):

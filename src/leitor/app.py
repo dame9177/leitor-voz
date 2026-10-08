@@ -71,7 +71,7 @@ class App(QObject):
         return self._settings_view()
 
     def status(self) -> dict:
-        return {**self._player_status, **self._settings_view()}
+        return {**self._player_status, **self._settings_view(), "output": self.player.device_name}
 
     def _settings_view(self) -> dict:
         return {"voice": self.settings.voice, "speed": self.settings.speed, "voices": VOICES}
