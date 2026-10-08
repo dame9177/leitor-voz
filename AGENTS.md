@@ -47,4 +47,6 @@ LEITOR_ENV_FILE=../.env uv run leitor # daemon (tray + mini-player + API on 127.
 - Audio follows the system default output: the sink is recreated when `QMediaDevices.audioOutputsChanged`
     fires (Bluetooth headphones) and checked on every new reading; `/status` reports `output`.
     Fixed 2026-10-08: the sink used to be bound to the startup default forever.
+- The audio format sets `ChannelConfigMono` explicitly. Without it PipeWire sees an unpositioned
+    `AUX0` channel and links it only to the left side (fixed 2026-10-08, `tests/test_player_format.py`).
 - Ideas, not done: per-site tuning for Medway's DOM if the heuristics miss; "repeat last" shortcut.

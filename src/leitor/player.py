@@ -99,6 +99,17 @@ def describe_error(exc: Exception) -> str:
     return f"{name}: {exc}"
 
 
+def audio_format() -> QAudioFormat:
+    """24 kHz mono s16. The explicit mono channel config matters: without it
+    PipeWire gets an unpositioned AUX0 channel and plays it on one side only."""
+    fmt = QAudioFormat()
+    fmt.setSampleRate(SAMPLE_RATE)
+    fmt.setChannelCount(1)
+    fmt.setChannelConfig(QAudioFormat.ChannelConfig.ChannelConfigMono)
+    fmt.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+    return fmt
+
+
 class Player(QObject):
     """Plays one reading at a time. All methods must run on the Qt main thread."""
 
@@ -110,10 +121,7 @@ class Player(QObject):
         self.synth = synth
         self.speed = speed  # read live, so speed changes apply mid-reading
 
-        self.format = QAudioFormat()
-        self.format.setSampleRate(SAMPLE_RATE)
-        self.format.setChannelCount(1)
-        self.format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+        self.format = audio_format()
         self.sink: QAudioSink | None = None
         self.device_id = None
         self.device_name = ""
