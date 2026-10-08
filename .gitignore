@@ -1,0 +1,32 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# Claude Code per-user local files
+.claude/settings.local.json
+
+# Editor / system files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Project-local tools and build output
+.tools/
+web-ext-artifacts/
+*.xpi
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+.amo-upload-uuid

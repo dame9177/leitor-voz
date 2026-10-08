@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root { color-scheme: light dark; --accent: #2f6f5e; --muted: #6f8279; --bg: #fbfaf6; --fg: #1d2421; --line: #dfe4df; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #1f2a27; --fg: #e9efe9; --line: #35463f; --muted: #8fa39a; } }
+    body { margin: 0; width: 290px; font: 13px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+    header { display: flex; align-items: center; gap: 8px; padding: 12px 14px 8px; }
+    header img { width: 22px; height: 22px; }
+    header h1 { font-size: 14px; margin: 0; flex: 1; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #aaa; }
+    .dot.on { background: #3fae7d; } .dot.off { background: #d9534f; }
+    section { padding: 8px 14px; border-top: 1px solid var(--line); }
+    #state { color: var(--muted); min-height: 18px; }
+    #offline { display: none; color: #d9534f; }
+    code { background: rgba(127,127,127,.15); padding: 1px 4px; border-radius: 4px; }
+    .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+    .row label { flex: 1; }
+    button { background: var(--accent); color: #fff; border: none; border-radius: 7px; padding: 5px 10px; cursor: pointer; font: inherit; }
+    button:hover { filter: brightness(1.12); }
+    select { font: inherit; padding: 2px 4px; border-radius: 6px; }
+    .keys { color: var(--muted); font-size: 12px; }
+    .keys b { color: var(--fg); font-weight: 600; }
+    footer { padding: 6px 14px 10px; color: var(--muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon.svg" alt="">
+    <h1>Leitor de voz</h1>
+    <span class="dot" id="dot" title="App desktop"></span>
+  </header>
+  <section>
+    <div id="state">Verificando…</div>
+    <div id="offline">O app desktop não está rodando. Abra-o pelo menu de aplicativos ou rode <code>leitor</code> no terminal.</div>
+    <div class="row">
+      <button id="toggle">⏯ Pausar/retomar</button>
+      <button id="stop">⏹ Parar</button>
+    </div>
+  </section>
+  <section>
+    <div class="row"><label for="voice">Voz</label><select id="voice"></select></div>
+    <div class="row"><label for="speed">Velocidade</label>
+      <select id="speed">
+        <option value="0.75">0.75×</option><option value="1">1×</option><option value="1.15">1.15×</option>
+        <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option>
+        <option value="2">2×</option>
+      </select>
+    </div>
+    <div class="row"><label for="site">Ativo neste site</label><input type="checkbox" id="site"></div>
+    <div class="row"><label for="bubble">Botão ao selecionar texto</label><input type="checkbox" id="bubble"></div>
+  </section>
+  <section class="keys">
+    Passe o mouse num parágrafo e clique em 🔊 (<b>Shift</b>+clique lê até o fim).<br>
+    <b>Alt+Shift+R</b> ler · <b>Alt+Shift+P</b> pausar · <b>Alt+Shift+S</b> parar
+  </section>
+  <footer>Voz gerada por IA (OpenAI). O texto lido é enviado à OpenAI pelo app local.</footer>
+  <script src="popup.js"></script>
+</body>
+</html>

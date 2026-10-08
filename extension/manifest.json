@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Leitor de voz",
+  "version": "0.1.0",
+  "description": "Passe o mouse num parágrafo ou selecione um trecho e ouça em voz alta (OpenAI TTS via app desktop local).",
+  "homepage_url": "https://github.com/dame9177/leitor-voz",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "leitor-voz@dame9177.github.io",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": ["websiteContent"]
+      }
+    }
+  },
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "permissions": ["contextMenus", "storage"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Leitor de voz",
+    "default_popup": "popup.html",
+    "default_icon": "icons/icon.svg"
+  },
+  "commands": {
+    "read": {
+      "suggested_key": { "default": "Alt+Shift+R" },
+      "description": "Ler a seleção ou o parágrafo sob o mouse"
+    },
+    "toggle": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Pausar / retomar"
+    },
+    "stop": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Parar a leitura"
+    }
+  }
+}

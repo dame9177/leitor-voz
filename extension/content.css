@@ -1,0 +1,8 @@
+/* Paragraph currently being read aloud by Leitor de voz. */
+.leitor-voz-reading {
+  background-color: rgba(255, 214, 102, 0.28) !important;
+  outline: 2px solid rgba(47, 111, 94, 0.55) !important;
+  outline-offset: 3px !important;
+  border-radius: 3px !important;
+  transition: background-color 0.2s ease !important;
+}
