@@ -12,7 +12,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from .config import VOICES, Settings, cache_dir, load_env
-from .player import Player, Segment, Voice
+from .player import Player, Segment, Voice, list_outputs
 from .selection import read_primary_selection
 from .server import ApiServer
 from .tts import SpeechCache, Synthesizer
@@ -31,7 +31,8 @@ class App(QObject):
         super().__init__()
         self.settings = settings
         self._lock = threading.Lock()
-        self.player = Player(synth, speed=lambda: self.settings.speed)
+        self.player = Player(synth, speed=lambda: self.settings.speed,
+                             manual_output=settings.output_device)
         self._player_status = dict(self.player.status)
 
         icon = QIcon(str(files("leitor") / "assets" / "icon.svg"))
@@ -43,6 +44,7 @@ class App(QObject):
         self._control_requested.connect(self._do_control)
         self._settings_changed.connect(self._show_settings)
         self.player.status_changed.connect(self._on_status)
+        self.player.outputs_changed.connect(self._show_outputs)
         self.mini.action.connect(self._do_control)
         self.mini.settings_requested.connect(self._update_from_ui)
         self.tray.action.connect(self._do_control)
@@ -107,6 +109,14 @@ class App(QObject):
     def _show_settings(self) -> None:
         self.mini.show_settings(self.settings.voice, self.settings.speed)
         self.tray.show_settings(self.settings.voice, self.settings.speed)
+        if self.player.manual_output != self.settings.output_device:
+            self.player.set_manual_output(self.settings.output_device)
+        self._show_outputs()
+
+    def _show_outputs(self) -> None:
+        args = (list_outputs(), self.settings.output_device, self.player.device_name)
+        self.mini.show_outputs(*args)
+        self.tray.show_outputs(*args)
 
     def _on_status(self, status: dict) -> None:
         self._player_status = status

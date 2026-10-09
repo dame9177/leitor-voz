@@ -11,6 +11,7 @@ from PySide6.QtMultimedia import QAudio, QAudioFormat, QAudioSink, QMediaDevices
 
 from .audio import PcmQueue, Stretcher, float_to_pcm
 from .chunker import split_text
+from .outputs import OutputChooser
 from .tts import SAMPLE_RATE, Cancelled, Synthesizer
 
 MAX_AHEAD_SECONDS = 30  # don't synthesize (and pay for) far beyond what is playing
@@ -99,6 +100,15 @@ def describe_error(exc: Exception) -> str:
     return f"{name}: {exc}"
 
 
+def device_id(device) -> str:
+    return bytes(device.id()).decode(errors="replace")
+
+
+def list_outputs() -> list[tuple[str, str]]:
+    """(id, description) of every audio output, for menus."""
+    return [(device_id(d), d.description()) for d in QMediaDevices.audioOutputs()]
+
+
 def audio_format() -> QAudioFormat:
     """24 kHz mono s16. The explicit mono channel config matters: without it
     PipeWire gets an unpositioned AUX0 channel and plays it on one side only."""
@@ -114,9 +124,10 @@ class Player(QObject):
     """Plays one reading at a time. All methods must run on the Qt main thread."""
 
     status_changed = Signal(dict)
+    outputs_changed = Signal()
     _job_error = Signal(str)
 
-    def __init__(self, synth: Synthesizer, speed: Callable[[], float]):
+    def __init__(self, synth: Synthesizer, speed: Callable[[], float], manual_output: str = ""):
         super().__init__()
         self.synth = synth
         self.speed = speed  # read live, so speed changes apply mid-reading
@@ -126,8 +137,11 @@ class Player(QObject):
         self.device_id = None
         self.device_name = ""
         self.io = None
+        self.manual_output = manual_output  # "" = automatic
+        self.chooser = OutputChooser(
+            [i for i, _ in list_outputs()], device_id(QMediaDevices.defaultAudioOutput()))
         self._ensure_sink()
-        # Follow the system default output (e.g. Bluetooth headphones connected later).
+        # Follow device changes (e.g. Bluetooth headphones connected later).
         self.devices = QMediaDevices(self)
         self.devices.audioOutputsChanged.connect(self._on_outputs_changed)
 
@@ -197,11 +211,23 @@ class Player(QObject):
         if self.status["state"] == "paused":
             self._set(state="playing")
 
+    def set_manual_output(self, output_id: str) -> None:
+        """Use this device whenever it is connected; "" means automatic."""
+        self.manual_output = output_id
+        self._switch_if_needed()
+
     # -- internals -------------------------------------------------------------
 
+    def _target_device(self):
+        wanted = self.chooser.choose(self.manual_output)
+        for device in QMediaDevices.audioOutputs():
+            if device_id(device) == wanted:
+                return device
+        return QMediaDevices.defaultAudioOutput()
+
     def _ensure_sink(self) -> bool:
-        """(Re)create the sink if the default output device changed. True if recreated."""
-        device = QMediaDevices.defaultAudioOutput()
+        """(Re)create the sink if the target output device changed. True if recreated."""
+        device = self._target_device()
         if self.sink is not None and device.id() == self.device_id:
             return False
         if self.sink is not None:
@@ -214,6 +240,12 @@ class Player(QObject):
         return True
 
     def _on_outputs_changed(self) -> None:
+        self.chooser.update(
+            [i for i, _ in list_outputs()], device_id(QMediaDevices.defaultAudioOutput()))
+        self._switch_if_needed()
+        self.outputs_changed.emit()
+
+    def _switch_if_needed(self) -> None:
         playing = self.io is not None
         if not self._ensure_sink() or not playing:
             return

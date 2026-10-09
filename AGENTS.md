@@ -49,4 +49,9 @@ LEITOR_ENV_FILE=../.env uv run leitor # daemon (tray + mini-player + API on 127.
     Fixed 2026-10-08: the sink used to be bound to the startup default forever.
 - The audio format sets `ChannelConfigMono` explicitly. Without it PipeWire sees an unpositioned
     `AUX0` channel and links it only to the left side (fixed 2026-10-08, `tests/test_player_format.py`).
+- Output selection (`outputs.py`, Qt-free, tested): automatic mode prefers the most recently
+    connected output, or the latest system-default change, else the system default. WirePlumber does
+    not switch the default to a never-selected BT headset, which is why this exists. A manual
+    choice (`output_device`) wins while connected. To test without hardware, create a virtual sink:
+    `pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=x media.class=Audio/Sink audio.position=[FL FR] object.linger=true }'`.
 - Ideas, not done: per-site tuning for Medway's DOM if the heuristics miss; "repeat last" shortcut.

@@ -32,6 +32,7 @@ class Tray(QObject):
             menu.addMenu("Voz"), VOICES, lambda v: {"voice": v}, str)
         self.speed_actions = self._radio_menu(
             menu.addMenu("Velocidade"), SPEEDS, lambda s: {"speed": s}, lambda s: f"{s:g}×")
+        self.output_menu = menu.addMenu("Saída de áudio")
 
         menu.addSeparator()
         add("Mostrar player", "show")
@@ -60,6 +61,18 @@ class Tray(QObject):
             self.voice_actions[voice].setChecked(True)
         if speed in self.speed_actions:
             self.speed_actions[speed].setChecked(True)
+
+    def show_outputs(self, outputs: list[tuple[str, str]], manual: str, current: str) -> None:
+        self.output_menu.clear()
+        group = QActionGroup(self.output_menu)
+        auto_label = f"Automático ({current})" if not manual else "Automático"
+        for output_id, label in [("", auto_label), *outputs]:
+            act = QAction(label, self.output_menu, checkable=True)
+            act.setChecked(output_id == manual)
+            act.triggered.connect(
+                lambda _=False, v=output_id: self.settings_requested.emit({"output_device": v}))
+            group.addAction(act)
+            self.output_menu.addAction(act)
 
     def notify(self, title: str, message: str) -> None:
         self.icon.showMessage(title, message, QSystemTrayIcon.MessageIcon.Warning, 6000)

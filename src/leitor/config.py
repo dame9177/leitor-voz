@@ -51,6 +51,7 @@ class Settings:
     instructions: str = DEFAULT_INSTRUCTIONS
     port: int = DEFAULT_PORT
     cache_mb: int = 300
+    output_device: str = ""  # audio output id; "" = automatic
 
     def update(self, data: dict) -> None:
         """Apply a partial update, validating the user-editable fields."""
@@ -63,6 +64,8 @@ class Settings:
             if not SPEED_MIN <= speed <= SPEED_MAX:
                 raise ValueError(f"velocidade fora de {SPEED_MIN}–{SPEED_MAX}")
             self.speed = round(speed, 2)
+        if "output_device" in data:
+            self.output_device = str(data["output_device"])[:300]
         if "instructions" in data:
             self.instructions = str(data["instructions"])[:2000]
 

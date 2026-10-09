@@ -27,3 +27,12 @@ def test_update_validates():
     with pytest.raises(ValueError):
         s.update({"speed": 9})
     assert s.voice == "marin" and s.speed == 1.0
+
+
+def test_output_device_roundtrip(tmp_path):
+    path = tmp_path / "config.json"
+    s = Settings()
+    assert s.output_device == ""
+    s.update({"output_device": "bluez_output.AA.1"})
+    s.save(path)
+    assert Settings.load(path).output_device == "bluez_output.AA.1"

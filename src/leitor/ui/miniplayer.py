@@ -100,6 +100,15 @@ class MiniPlayer(QWidget):
         controls.addWidget(self.speed)
         controls.addWidget(self.voice)
 
+        self.output = QComboBox()
+        self.output.setToolTip(
+            "Saída de áudio. Automático: o fone conectado por último ou o padrão do sistema.")
+        self.output.activated.connect(
+            lambda: self.settings_requested.emit({"output_device": self.output.currentData()}))
+        output_row = QHBoxLayout()
+        output_row.addWidget(QLabel("🎧"))
+        output_row.addWidget(self.output, 1)
+
         footer = QLabel("Voz gerada por IA (OpenAI)")
         footer.setStyleSheet("color: #6f8279; font-size: 10px;")
 
@@ -109,6 +118,7 @@ class MiniPlayer(QWidget):
         layout.addWidget(self.text)
         layout.addWidget(self.error)
         layout.addLayout(controls)
+        layout.addLayout(output_row)
         layout.addWidget(footer)
 
         self._hide_timer = QTimer(self, singleShot=True, interval=4000)
@@ -123,6 +133,16 @@ class MiniPlayer(QWidget):
             self.speed.addItem(f"{speed:g}×", speed)
             i = self.speed.count() - 1
         self.speed.setCurrentIndex(i)
+
+    def show_outputs(self, outputs: list[tuple[str, str]], manual: str, current: str) -> None:
+        """outputs: (id, name); manual: chosen id or "" (automatic); current: name in use."""
+        self.output.clear()
+        self.output.addItem(f"Automático ({current})" if not manual else "Automático", "")
+        for output_id, name in outputs:
+            self.output.addItem(name, output_id)
+        if manual and self.output.findData(manual) < 0:
+            self.output.addItem("Dispositivo escolhido (desconectado)", manual)
+        self.output.setCurrentIndex(self.output.findData(manual))
 
     def show_status(self, status: dict) -> None:
         state = status["state"]

@@ -80,7 +80,11 @@ Se a sua chave está em outro arquivo `.env`, use `LEITOR_ENV_FILE=/caminho/.env
 | Qualquer programa | Selecione o texto e aperte **Ctrl+Alt+L**. |
 | Terminal | `leitor ler "texto"`, `leitor pausar`, `leitor parar`, `leitor proximo`, `leitor status`. |
 
-No **mini-player**, no canto da tela, você pausa, pula para o próximo trecho, para, e escolhe velocidade e voz. Ele pode ser arrastado e some sozinho quando a leitura acaba. No **popup da extensão** dá para desligá-la num site específico ou esconder a bolha de seleção.
+No **mini-player**, no canto da tela, você pausa, pula para o próximo trecho, para, e escolhe velocidade, voz e **saída de áudio**. Ele pode ser arrastado e some sozinho quando a leitura acaba. No **popup da extensão** dá para desligá-la num site específico ou esconder a bolha de seleção.
+
+A **saída de áudio** também está no menu do ícone:
+- **Automático** (padrão): usa o fone conectado por último, mesmo que o sistema não tenha trocado para ele, ou a saída que você escolher nas configurações do sistema.
+- **Um dispositivo específico**: é usado sempre que estiver conectado.
 
 Configurações ficam em `~/.config/leitor-voz/config.json`:
 
@@ -92,6 +96,7 @@ Configurações ficam em `~/.config/leitor-voz/config.json`:
 | `instructions` | Como a voz deve ler. Padrão: português do Brasil, tom didático, siglas médicas bem pronunciadas. |
 | `port` | Porta local. Padrão: 47321. |
 | `cache_mb` | Tamanho do cache. |
+| `output_device` | Saída de áudio escolhida. Vazio = automático. |
 
 ## Custos e privacidade
 
