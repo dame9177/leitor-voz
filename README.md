@@ -64,6 +64,16 @@ Se a sua chave está em outro arquivo `.env`, use `LEITOR_ENV_FILE=/caminho/.env
 1. Baixe o `.xpi` assinado na página de [Releases](https://github.com/dame9177/leitor-voz/releases).
 2. No Firefox, abra **Arquivo → Abrir arquivo…** e escolha o `.xpi`. Outra forma: arraste o arquivo para a janela.
 
+**Atualizar para uma versão nova:**
+
+```bash
+cd leitor-voz
+git pull
+uv sync
+```
+
+Depois feche o app (ícone → **Sair**) e abra de novo pelo menu de aplicativos. Só reinstale a extensão se a release disser que ela mudou.
+
 **Atalho global (opcional):** Ctrl+Alt+L lê a seleção em qualquer programa.
 
 ```bash

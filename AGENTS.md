@@ -33,6 +33,11 @@ LEITOR_ENV_FILE=../.env uv run leitor # daemon (tray + mini-player + API on 127.
 
 ## Status / next steps
 
+- Workflow since v0.2.0 (2026-10-10): the repo has outside users. Changes go through a branch + PR,
+  never straight to `master`. Release = bump `pyproject.toml` version (+ `uv lock`), tag, then
+  `gh release create` with notes and the `.xpi`. Re-sign the extension only if `extension/` changed,
+  and bump its manifest version when you do.
+
 - 2026-10-08: v0.1.0 working end-to-end and tested by the user in Firefox (hover 🔊, selection
   bubble, context menu, shortcuts, highlight). Signed unlisted XPI built. Autostart installed
   (`~/.config/autostart/leitor-voz.desktop`, uses `LEITOR_ENV_FILE` = root `.env`).
