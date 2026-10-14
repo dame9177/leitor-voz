@@ -21,7 +21,7 @@ class FakeController:
         if data.get("voice") == "robocop":
             raise ValueError("voz desconhecida")
         self.settings.append(data)
-        return {"voice": data.get("voice", "marin")}
+        return {"voice": data.get("voice", "Kore")}
 
     def status(self):
         return {"state": "idle"}
@@ -99,7 +99,7 @@ def test_control_validates_action(api):
 
 def test_settings_errors_become_400(api):
     _, port = api
-    assert request(port, "POST", "/settings", {"voice": "cedar"})[:2] == (200, {"voice": "cedar"})
+    assert request(port, "POST", "/settings", {"voice": "Puck"})[:2] == (200, {"voice": "Puck"})
     assert request(port, "POST", "/settings", {"voice": "robocop"})[0] == 400
 
 

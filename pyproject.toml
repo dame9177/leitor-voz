@@ -1,14 +1,14 @@
 [project]
 name = "leitor-voz"
-version = "0.2.0"
-description = "Leitor de voz para estudo: extensão Firefox + app desktop que lê trechos em voz alta com OpenAI TTS"
+version = "0.3.0"
+description = "Leitor de voz para estudo: extensão Firefox + app desktop que lê trechos em voz alta com Gemini TTS"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "audiotsm>=0.1.2",
+    "httpx2>=2.13.1",
     "numpy>=2.4.6",
-    "openai>=3.26.1",
     "pyside6>=6.12.0",
     "python-dotenv>=1.2.4",
 ]

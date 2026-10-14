@@ -1,6 +1,7 @@
 """The desktop daemon: wires settings, synthesis, playback, HTTP API and UI."""
 
 import copy
+import logging
 import os
 import sys
 import threading
@@ -15,7 +16,7 @@ from .config import VOICES, Settings, cache_dir, load_env
 from .player import Player, Segment, Voice, list_outputs
 from .selection import read_primary_selection
 from .server import ApiServer
-from .tts import SpeechCache, Synthesizer
+from .tts import API_URL, GeminiClient, SpeechCache, Synthesizer
 from .ui.miniplayer import MiniPlayer
 from .ui.tray import Tray
 
@@ -81,7 +82,7 @@ class App(QObject):
     # -- main thread ----------------------------------------------------------
 
     def _do_read(self, reading_id: str, segments: list) -> None:
-        voice = Voice(self.settings.model, self.settings.voice, self.settings.instructions)
+        voice = Voice(self.settings.model, self.settings.voice, self.settings.style)
         self.player.read(reading_id, [Segment(s["id"], s["text"]) for s in segments], voice)
 
     def _do_control(self, action: str) -> None:
@@ -125,18 +126,16 @@ class App(QObject):
 
 def run_daemon() -> int:
     load_env()
+    # Warnings (retries, errors) go to stderr, which the session journal keeps.
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx2").setLevel(logging.WARNING)  # one line per request otherwise
     settings = Settings.load()
     qt = QApplication(sys.argv)
     qt.setApplicationName("leitor-voz")
     qt.setQuitOnLastWindowClosed(False)
 
-    import openai  # slow import; keep it off the CLI path
-
-    # A stalled Wi-Fi keeps the socket open without data; the default 600 s read timeout
-    # would leave the reading silent that long. 15 s without a byte → retry (ReadJob).
-    timeout = openai.Timeout(60.0, connect=10.0, read=15.0)
-    client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY") or "ausente",
-                           max_retries=1, timeout=timeout)
+    client = GeminiClient(os.environ.get("GEMINI_API_KEY") or "ausente",
+                          url=os.environ.get("LEITOR_GEMINI_URL") or API_URL)
     synth = Synthesizer(client, SpeechCache(cache_dir(), settings.cache_mb * 1024 * 1024))
     app = App(settings, synth)
     try:
@@ -145,10 +144,10 @@ def run_daemon() -> int:
         print(f"Porta {settings.port} ocupada: o leitor já está rodando?", file=sys.stderr)
         return 1
     server.start()
-    if not os.environ.get("OPENAI_API_KEY"):
+    if not os.environ.get("GEMINI_API_KEY"):
         app.tray.notify(
             "Leitor de voz",
-            "OPENAI_API_KEY não encontrada. Defina no ambiente ou em ~/.config/leitor-voz/.env.",
+            "GEMINI_API_KEY não encontrada. Defina no ambiente ou em ~/.config/leitor-voz/.env.",
         )
     print(f"Leitor de voz ouvindo em http://127.0.0.1:{server.port}", flush=True)
     code = qt.exec()

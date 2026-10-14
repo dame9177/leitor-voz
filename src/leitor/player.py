@@ -1,5 +1,6 @@
 """Reading jobs (synthesis in a background thread) and playback with QAudioSink."""
 
+import logging
 import threading
 import time
 from collections.abc import Callable
@@ -12,19 +13,18 @@ from PySide6.QtMultimedia import QAudio, QAudioFormat, QAudioSink, QMediaDevices
 from .audio import PcmQueue, Stretcher, float_to_pcm
 from .chunker import split_text
 from .outputs import OutputChooser
-from .tts import SAMPLE_RATE, Cancelled, Synthesizer
+from .tts import SAMPLE_RATE, AuthError, Cancelled, QuotaError, Synthesizer, TtsError
+
+log = logging.getLogger(__name__)
 
 MAX_AHEAD_SECONDS = 30  # don't synthesize (and pay for) far beyond what is playing
 SINK_BUFFER_SECONDS = 0.3
 RETRY_MAX_DELAY = 10.0
 
-# Network trouble worth waiting out. Matched by class name (anywhere in the MRO) so this
-# module doesn't import openai/httpx: openai's connection/timeout/5xx errors, httpx
-# errors raised mid-stream (dropped connection, read timeout) and plain socket errors.
-TRANSIENT_ERRORS = {
-    "APIConnectionError", "InternalServerError", "TransportError",
-    "ConnectionError", "TimeoutError",
-}
+# Trouble worth waiting out. Matched by class name (anywhere in the MRO) so this module
+# doesn't import httpx: server errors (5xx or mid-stream), httpx connection errors and
+# stalls (read timeout), and plain socket errors.
+TRANSIENT_ERRORS = {"ServerError", "TransportError", "ConnectionError", "TimeoutError"}
 
 
 def is_transient(exc: Exception) -> bool:
@@ -32,8 +32,11 @@ def is_transient(exc: Exception) -> bool:
 
 
 def retry_delay(attempt: int) -> float:
-    """Seconds to wait before retry number attempt+1: 1, 2, 4, 8, 10, 10…"""
-    return min(2.0**attempt, RETRY_MAX_DELAY)
+    """Seconds to wait before retry number attempt+1: 0, 1, 2, 4, 8, 10, 10…
+
+    The first retry is immediate: a stalled stream is usually the server, not the network.
+    """
+    return 0.0 if attempt == 0 else min(2.0 ** (attempt - 1), RETRY_MAX_DELAY)
 
 
 @dataclass
@@ -46,7 +49,7 @@ class Segment:
 class Voice:
     model: str
     voice: str
-    instructions: str
+    style: str
 
 
 class ReadJob(threading.Thread):
@@ -100,6 +103,7 @@ class ReadJob(threading.Thread):
             pass
         except Exception as exc:  # network, auth, quota… surface to the UI
             if not self.cancelled.is_set():
+                log.error("reading stopped: %s: %s", type(exc).__name__, exc)
                 self.on_error(describe_error(exc))
         finally:
             self.queue.finish()
@@ -114,7 +118,7 @@ class ReadJob(threading.Thread):
                         text,
                         model=self.voice.model,
                         voice=self.voice.voice,
-                        instructions=self.voice.instructions,
+                        style=self.voice.style,
                         cancel=self.cancelled,
                     ):
                         if segment_id in self._skip:
@@ -124,6 +128,8 @@ class ReadJob(threading.Thread):
                 except Exception as exc:
                     if self.cancelled.is_set() or not is_transient(exc):
                         raise
+                    log.warning("chunk %d, attempt %d failed: %s: %s",
+                                self._chunk, attempt + 1, type(exc).__name__, exc)
                 # The API can't resume mid-audio, so the chunk is redone from its start.
                 # Dropping its unplayed audio means only what was already heard repeats.
                 self.queue.drop_chunk(self._chunk)
@@ -136,18 +142,19 @@ class ReadJob(threading.Thread):
                     return
         finally:
             if attempt:
+                log.info("chunk %d recovered after %d failed attempts", self._chunk, attempt)
                 self.on_reconnecting(False)
 
 
 def describe_error(exc: Exception) -> str:
-    name = type(exc).__name__
-    if name == "AuthenticationError":
-        return "Chave da OpenAI inválida ou ausente (OPENAI_API_KEY)."
-    if name == "RateLimitError":
-        return "Limite/cota da OpenAI atingido (429). Verifique o saldo da conta."
-    if name in ("APIConnectionError", "APITimeoutError"):
-        return "Sem conexão com a OpenAI."
-    return f"{name}: {exc}"
+    if isinstance(exc, AuthError):
+        return "Chave do Gemini inválida ou ausente (GEMINI_API_KEY)."
+    if isinstance(exc, QuotaError):
+        return ("Créditos ou limite do Gemini esgotados. "
+                "Verifique o faturamento do projeto no Google AI Studio.")
+    if isinstance(exc, TtsError):
+        return f"Erro do Gemini: {exc}"
+    return f"{type(exc).__name__}: {exc}"
 
 
 def device_id(device) -> str:

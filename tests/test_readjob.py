@@ -1,6 +1,4 @@
 import threading
-from contextlib import contextmanager
-from types import SimpleNamespace
 
 import httpx2
 import numpy as np
@@ -8,12 +6,8 @@ import pytest
 
 from leitor import player
 from leitor.audio import PcmQueue, float_to_pcm
-from leitor.player import ReadJob, Segment, Voice, is_transient
-from leitor.tts import SpeechCache, Synthesizer
-
-
-class AuthenticationError(Exception):  # stands in for openai.AuthenticationError
-    pass
+from leitor.player import ReadJob, Segment, Voice, describe_error, is_transient, retry_delay
+from leitor.tts import AuthError, QuotaError, ServerError, SpeechCache, Synthesizer
 
 
 def pcm(value, n=4):
@@ -28,25 +22,12 @@ class ScriptedClient:
         self.script = list(script)
         self.calls = 0
 
-        @contextmanager
-        def create(**kwargs):
-            self.calls += 1
-            items = self.script.pop(0) if self.script else []
-
-            def iter_bytes(chunk_size=None):
-                for item in items:
-                    if isinstance(item, Exception):
-                        raise item
-                    yield item
-
-            if items and isinstance(items[0], Exception) and not isinstance(
-                items[0], httpx2.TransportError
-            ):
-                raise items[0]  # fails before the response starts
-            yield SimpleNamespace(iter_bytes=iter_bytes)
-
-        self.audio = SimpleNamespace(
-            speech=SimpleNamespace(with_streaming_response=SimpleNamespace(create=create)))
+    def stream(self, text, **kwargs):
+        self.calls += 1
+        for item in self.script.pop(0) if self.script else []:
+            if isinstance(item, Exception):
+                raise item
+            yield item
 
 
 @pytest.fixture(autouse=True)
@@ -93,10 +74,10 @@ def test_keeps_retrying_until_network_is_back(tmp_path):
 
 
 def test_fatal_error_is_not_retried(tmp_path):
-    client = ScriptedClient([AuthenticationError("bad key")], [pcm(0.5)])
+    client = ScriptedClient([AuthError("HTTP 401: bad key")], [pcm(0.5)])
     queue, errors, reconnecting = run_job(tmp_path, client)
     assert client.calls == 1
-    assert errors == ["Chave da OpenAI inválida ou ausente (OPENAI_API_KEY)."]
+    assert errors == ["Chave do Gemini inválida ou ausente (GEMINI_API_KEY)."]
     assert reconnecting == []
     assert queue.drained
 
@@ -119,14 +100,25 @@ def test_cancel_interrupts_retry_wait(tmp_path, monkeypatch):
     assert errors == []
 
 
-def test_transient_classification():
-    class APIConnectionError(Exception): ...
-    class APITimeoutError(APIConnectionError): ...
-    class InternalServerError(Exception): ...
-    class RateLimitError(Exception): ...
+def test_server_error_is_retried(tmp_path):
+    client = ScriptedClient([ServerError("HTTP 503: overloaded")], [pcm(0.5)])
+    queue, errors, reconnecting = run_job(tmp_path, client)
+    assert client.calls == 2
+    assert errors == []
+    assert reconnecting == [True, False]
 
+
+def test_transient_classification():
     for exc in (httpx2.RemoteProtocolError("x"), httpx2.ReadTimeout("x"),
-                APITimeoutError(), InternalServerError(), ConnectionResetError()):
+                httpx2.ConnectError("x"), ServerError("x"), ConnectionResetError()):
         assert is_transient(exc), exc
-    for exc in (AuthenticationError(), RateLimitError(), ValueError()):
+    for exc in (AuthError("x"), QuotaError("x"), ValueError()):
         assert not is_transient(exc), exc
+
+
+def test_first_retry_is_immediate():
+    assert [retry_delay(a) for a in range(6)] == [0, 1, 2, 4, 8, 10]
+
+
+def test_quota_error_message():
+    assert "Google AI Studio" in describe_error(QuotaError("HTTP 402: credits depleted"))

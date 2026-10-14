@@ -15,7 +15,7 @@ class Tray(QObject):
     def __init__(self, icon: QIcon):
         super().__init__()
         self.icon = QSystemTrayIcon(icon)
-        self.icon.setToolTip("Leitor de voz — voz gerada por IA (OpenAI)")
+        self.icon.setToolTip("Leitor de voz — voz gerada por IA (Google Gemini)")
         menu = QMenu()
 
         def add(label, name):

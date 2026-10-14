@@ -4,7 +4,7 @@
 # ~/.local/share/applications/leitor-voz.desktop (user-level, no sudo).
 #
 # Optional: LEITOR_ENV_FILE=/path/to/.env ./scripts/install-autostart.sh
-# makes the app load OPENAI_API_KEY from that file (default: ~/.config/leitor-voz/.env).
+# makes the app load GEMINI_API_KEY from that file (default: ~/.config/leitor-voz/.env).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,7 +22,7 @@ entry() {
 [Desktop Entry]
 Type=Application
 Name=Leitor de voz
-Comment=Lê em voz alta trechos selecionados (OpenAI TTS)
+Comment=Lê em voz alta trechos selecionados (Gemini TTS)
 Exec=$EXEC
 Icon=$ICON
 Terminal=false
