@@ -16,6 +16,24 @@ from .tts import SAMPLE_RATE, Cancelled, Synthesizer
 
 MAX_AHEAD_SECONDS = 30  # don't synthesize (and pay for) far beyond what is playing
 SINK_BUFFER_SECONDS = 0.3
+RETRY_MAX_DELAY = 10.0
+
+# Network trouble worth waiting out. Matched by class name (anywhere in the MRO) so this
+# module doesn't import openai/httpx: openai's connection/timeout/5xx errors, httpx
+# errors raised mid-stream (dropped connection, read timeout) and plain socket errors.
+TRANSIENT_ERRORS = {
+    "APIConnectionError", "InternalServerError", "TransportError",
+    "ConnectionError", "TimeoutError",
+}
+
+
+def is_transient(exc: Exception) -> bool:
+    return any(cls.__name__ in TRANSIENT_ERRORS for cls in type(exc).__mro__)
+
+
+def retry_delay(attempt: int) -> float:
+    """Seconds to wait before retry number attempt+1: 1, 2, 4, 8, 10, 10…"""
+    return min(2.0**attempt, RETRY_MAX_DELAY)
 
 
 @dataclass
@@ -32,7 +50,11 @@ class Voice:
 
 
 class ReadJob(threading.Thread):
-    """Synthesizes segments in order, pushing PCM into the queue."""
+    """Synthesizes segments in order, pushing PCM into the queue.
+
+    A chunk that fails on network trouble is retried until it succeeds or the job is
+    cancelled; on_reconnecting(True/False) brackets the wait. Other errors end the job.
+    """
 
     def __init__(
         self,
@@ -41,6 +63,7 @@ class ReadJob(threading.Thread):
         voice: Voice,
         queue: PcmQueue,
         on_error: Callable[[str], None],
+        on_reconnecting: Callable[[bool], None],
     ):
         super().__init__(daemon=True)
         self.segments = segments
@@ -48,8 +71,10 @@ class ReadJob(threading.Thread):
         self.voice = voice
         self.queue = queue
         self.on_error = on_error
+        self.on_reconnecting = on_reconnecting
         self.cancelled = threading.Event()
         self._skip: set[str] = set()
+        self._chunk = 0
 
     def cancel(self) -> None:
         self.cancelled.set()
@@ -70,16 +95,7 @@ class ReadJob(threading.Thread):
                         return
                     if seg.id in self._skip:
                         break
-                    for data in self.synth.stream(
-                        chunk,
-                        model=self.voice.model,
-                        voice=self.voice.voice,
-                        instructions=self.voice.instructions,
-                        cancel=self.cancelled,
-                    ):
-                        if seg.id in self._skip:
-                            break
-                        self.queue.push(seg.id, data)
+                    self._synthesize(seg.id, chunk)
         except Cancelled:
             pass
         except Exception as exc:  # network, auth, quota… surface to the UI
@@ -87,6 +103,40 @@ class ReadJob(threading.Thread):
                 self.on_error(describe_error(exc))
         finally:
             self.queue.finish()
+
+    def _synthesize(self, segment_id: str, text: str) -> None:
+        self._chunk += 1
+        attempt = 0
+        try:
+            while True:
+                try:
+                    for data in self.synth.stream(
+                        text,
+                        model=self.voice.model,
+                        voice=self.voice.voice,
+                        instructions=self.voice.instructions,
+                        cancel=self.cancelled,
+                    ):
+                        if segment_id in self._skip:
+                            return
+                        self.queue.push(segment_id, data, self._chunk)
+                    return
+                except Exception as exc:
+                    if self.cancelled.is_set() or not is_transient(exc):
+                        raise
+                # The API can't resume mid-audio, so the chunk is redone from its start.
+                # Dropping its unplayed audio means only what was already heard repeats.
+                self.queue.drop_chunk(self._chunk)
+                if attempt == 0:
+                    self.on_reconnecting(True)
+                if self.cancelled.wait(retry_delay(attempt)):
+                    raise Cancelled
+                attempt += 1
+                if segment_id in self._skip:
+                    return
+        finally:
+            if attempt:
+                self.on_reconnecting(False)
 
 
 def describe_error(exc: Exception) -> str:
@@ -126,6 +176,7 @@ class Player(QObject):
     status_changed = Signal(dict)
     outputs_changed = Signal()
     _job_error = Signal(str)
+    _job_reconnecting = Signal(object, bool)  # (job, flag)
 
     def __init__(self, synth: Synthesizer, speed: Callable[[], float], manual_output: str = ""):
         super().__init__()
@@ -149,8 +200,10 @@ class Player(QObject):
         self.timer.setInterval(20)
         self.timer.timeout.connect(self._tick)
         self._job_error.connect(self._on_job_error)
+        self._job_reconnecting.connect(self._on_job_reconnecting)
 
         self.job: ReadJob | None = None
+        self.error: str | None = None  # shown once the audio already received has played
         self.queue = PcmQueue()
         self.stretcher = Stretcher()
         self.pending = b""
@@ -159,6 +212,7 @@ class Player(QObject):
         self.status = {
             "state": "idle", "reading_id": None, "segment_id": None,
             "segment_index": 0, "segment_count": 0, "text": "", "error": None,
+            "reconnecting": False,
         }
 
     # -- public API ----------------------------------------------------------
@@ -170,11 +224,14 @@ class Player(QObject):
         self.stretcher = Stretcher()
         self.pending = b""
         self.flushed = False
-        self.job = ReadJob(segments, self.synth, voice, self.queue, self._job_error.emit)
-        self.job.start()
+        self.error = None
+        job = ReadJob(segments, self.synth, voice, self.queue, self._job_error.emit,
+                      lambda flag: self._job_reconnecting.emit(job, flag))
+        self.job = job
+        job.start()
         self._ensure_sink()
         self.io = self.sink.start()
-        self._set(state="loading", reading_id=reading_id, error=None,
+        self._set(state="loading", reading_id=reading_id, error=None, reconnecting=False,
                   segment_count=len(segments), **self._segment_fields(segments[0].id))
         self.timer.start()
 
@@ -196,7 +253,7 @@ class Player(QObject):
 
     def stop(self) -> None:
         self._halt()
-        self._set(state="idle", segment_id=None, text="")
+        self._set(state="idle", segment_id=None, text="", reconnecting=False)
 
     def next(self) -> None:
         seg = self.status["segment_id"]
@@ -273,8 +330,19 @@ class Player(QObject):
         self.io = None
 
     def _on_job_error(self, message: str) -> None:
-        self._halt()
-        self._set(state="error", error=message)
+        # The job has stopped; let the audio already queued play out, then show the error.
+        self.error = message
+
+    def _on_job_reconnecting(self, job: ReadJob, flag: bool) -> None:
+        if job is self.job:
+            self._set(reconnecting=flag)
+
+    def _finish(self) -> None:
+        if self.error is None:
+            self.stop()
+        else:
+            self._halt()
+            self._set(state="error", error=self.error, reconnecting=False)
 
     def _write_pending(self) -> None:
         if self.pending and self.io is not None:
@@ -311,4 +379,4 @@ class Player(QObject):
             elif self.sink.state() == QAudio.State.IdleState or (
                 self.sink.bytesFree() >= self.sink.bufferSize()
             ):
-                self.stop()
+                self._finish()
