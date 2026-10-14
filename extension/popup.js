@@ -19,7 +19,9 @@ async function refresh() {
     $("state").textContent = "";
     return;
   }
-  $("state").textContent = st.state === "error" ? `Erro: ${st.error}` : STATES[st.state] || st.state;
+  if (st.state === "error") $("state").textContent = `Erro: ${st.error}`;
+  else if (st.reconnecting && st.state !== "paused") $("state").textContent = "Sem conexão, tentando de novo…";
+  else $("state").textContent = STATES[st.state] || st.state;
   if (!$("voice").options.length) {
     for (const v of st.voices) $("voice").add(new Option(v, v));
   }

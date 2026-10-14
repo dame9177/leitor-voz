@@ -59,4 +59,14 @@ LEITOR_ENV_FILE=../.env uv run leitor # daemon (tray + mini-player + API on 127.
     not switch the default to a never-selected BT headset, which is why this exists. A manual
     choice (`output_device`) wins while connected. To test without hardware, create a virtual sink:
     `pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=x media.class=Audio/Sink audio.position=[FL FR] object.linger=true }'`.
+- Network resilience (2026-10-14, branch `fix/network-resilience`): a dropped or stalled
+    connection used to end the reading and `_halt()` cut the already-buffered audio. Now
+    `ReadJob._synthesize` retries a chunk on transient errors (`is_transient`, matched by class
+    name) with 1→10 s backoff until cancelled, dropping the failed attempt's unplayed audio
+    (`PcmQueue.drop_chunk`) and redoing the chunk from its start (the API can't resume mid-audio).
+    Status has `reconnecting`. Fatal errors (auth, 429) let queued audio play before showing the
+    error. Client read timeout is 15 s (default 600 s left a stalled Wi-Fi silent for 10 min).
+    End-to-end check without the network: run the daemon with `OPENAI_BASE_URL` pointing to a
+    fake server, `QT_QPA_PLATFORM=offscreen` and `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` in a temp dir
+    (its `config.json` sets another `port`).
 - Ideas, not done: per-site tuning for Medway's DOM if the heuristics miss; "repeat last" shortcut.

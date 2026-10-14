@@ -26,6 +26,7 @@ App desktop (Python + Qt) ── OpenAI TTS (streaming PCM) ── alto-falante
 - O app recusa pedidos vindos de páginas web, por checagem de `Origin`, `Host` e `Content-Type`. Assim, nenhum site consegue usar o seu saldo.
 - O áudio começa a tocar em ~1–2 s, porque o primeiro pedaço é curto e chega em streaming. Os pedaços seguintes são sintetizados enquanto o anterior toca, com no máximo ~30 s de folga, para não gastar à toa se você parar.
 - A velocidade (0,75×–2×) é aplicada localmente, sem mudar o tom, e pode ser trocada no meio da leitura.
+- Se a conexão cair ou travar no meio da leitura, o que já chegou continua tocando e o app tenta de novo sozinho (o mini-player mostra "Sem conexão, tentando de novo…"). Quando a rede volta, ele retoma do começo do pedaço interrompido, repetindo só o que você já tinha ouvido dele.
 
 ## Requisitos
 

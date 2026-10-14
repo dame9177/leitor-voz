@@ -132,7 +132,11 @@ def run_daemon() -> int:
 
     import openai  # slow import; keep it off the CLI path
 
-    client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY") or "ausente", max_retries=1)
+    # A stalled Wi-Fi keeps the socket open without data; the default 600 s read timeout
+    # would leave the reading silent that long. 15 s without a byte → retry (ReadJob).
+    timeout = openai.Timeout(60.0, connect=10.0, read=15.0)
+    client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY") or "ausente",
+                           max_retries=1, timeout=timeout)
     synth = Synthesizer(client, SpeechCache(cache_dir(), settings.cache_mb * 1024 * 1024))
     app = App(settings, synth)
     try:

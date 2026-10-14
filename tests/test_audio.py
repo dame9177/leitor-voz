@@ -60,3 +60,14 @@ def test_stretcher_switch_back_to_1x_flushes():
     b = s.process(x, 1.0)  # flushes the tsm tail, then passes through
     assert len(b) >= len(x)
     assert len(a) + len(b) > len(x) / 1.5 + len(x) - 2400
+
+
+def test_queue_drop_chunk_removes_only_that_chunk():
+    q = PcmQueue()
+    q.push("a", float_to_pcm(np.zeros(4, np.float32)), chunk=1)
+    q.push("a", float_to_pcm(np.ones(4, np.float32) * 0.5)[:3], chunk=2)  # odd byte carried
+    q.drop_chunk(2)
+    q.push("a", float_to_pcm(np.ones(2, np.float32) * 0.5), chunk=2)
+    popped = q.pop(100)
+    assert [(s, len(a)) for s, a in popped] == [("a", 4), ("a", 2)]
+    np.testing.assert_allclose(popped[1][1], 0.5, atol=1e-4)  # no stale carried byte

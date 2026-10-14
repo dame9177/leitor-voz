@@ -146,7 +146,10 @@ class MiniPlayer(QWidget):
 
     def show_status(self, status: dict) -> None:
         state = status["state"]
-        self.title.setText(STATE_TITLES.get(state, state))
+        if status.get("reconnecting") and state in ("loading", "playing"):
+            self.title.setText("Sem conexão, tentando de novo…")
+        else:
+            self.title.setText(STATE_TITLES.get(state, state))
         self.play.setText("▶" if state == "paused" else "⏸")
         count = status.get("segment_count") or 0
         self.counter.setText(f"{status['segment_index'] + 1}/{count}" if count > 1 else "")

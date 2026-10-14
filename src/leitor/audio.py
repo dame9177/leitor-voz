@@ -23,18 +23,19 @@ class PcmQueue:
     """Producer pushes PCM bytes for a segment; consumer pops float samples."""
 
     def __init__(self):
-        self._items: deque[tuple[str, np.ndarray]] = deque()
+        # (segment id, samples, chunk tag); the tag lets a failed attempt be dropped.
+        self._items: deque[tuple[str, np.ndarray, object]] = deque()
         self._carry = b""  # odd trailing byte between network chunks
         self._lock = threading.Lock()
         self._finished = False
 
-    def push(self, segment_id: str, data: bytes) -> None:
+    def push(self, segment_id: str, data: bytes, chunk: object = None) -> None:
         with self._lock:
             data = self._carry + data
             cut = len(data) - (len(data) % 2)
             self._carry = data[cut:]
             if cut:
-                self._items.append((segment_id, pcm_to_float(data[:cut])))
+                self._items.append((segment_id, pcm_to_float(data[:cut]), chunk))
 
     def finish(self) -> None:
         with self._lock:
@@ -42,26 +43,32 @@ class PcmQueue:
 
     def buffered_seconds(self) -> float:
         with self._lock:
-            return sum(len(a) for _, a in self._items) / SAMPLE_RATE
+            return sum(len(a) for _, a, _ in self._items) / SAMPLE_RATE
 
     def pop(self, n: int) -> list[tuple[str, np.ndarray]]:
         out = []
         with self._lock:
             while n > 0 and self._items:
-                seg, arr = self._items[0]
+                seg, arr, chunk = self._items[0]
                 if len(arr) <= n:
                     self._items.popleft()
                     out.append((seg, arr))
                     n -= len(arr)
                 else:
                     out.append((seg, arr[:n]))
-                    self._items[0] = (seg, arr[n:])
+                    self._items[0] = (seg, arr[n:], chunk)
                     n = 0
         return out
 
     def drop_segment(self, segment_id: str) -> None:
         with self._lock:
             self._items = deque(i for i in self._items if i[0] != segment_id)
+
+    def drop_chunk(self, chunk: object) -> None:
+        """Forget the not-yet-played audio pushed with this chunk tag."""
+        with self._lock:
+            self._items = deque(i for i in self._items if i[2] != chunk)
+            self._carry = b""
 
     @property
     def drained(self) -> bool:
