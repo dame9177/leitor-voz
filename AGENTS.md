@@ -1,6 +1,6 @@
 # leitor-voz
 
-Leitor de voz para estudo: extensão Firefox + app desktop que lê trechos em voz alta com OpenAI TTS
+Leitor de voz para estudo: extensão Firefox + app desktop que lê trechos em voz alta com Gemini TTS
 
 Created 2026-10-08. Workspace-level rules live in `../AGENTS.md`. User-facing docs: `README.md`.
 Public repo: https://github.com/dame9177/leitor-voz (MIT).
@@ -24,7 +24,7 @@ LEITOR_ENV_FILE=../.env uv run leitor # daemon (tray + mini-player + API on 127.
 
 ## Project rules
 
-- The OpenAI key lives only in the daemon. The extension talks to 127.0.0.1 through its
+- The Gemini key (`GEMINI_API_KEY`) lives only in the daemon. The extension talks to 127.0.0.1 through its
   background script; the server rejects any request with a web-page `Origin`, a non-loopback
   `Host`, or a non-JSON POST. Keep it that way (tests in `tests/test_server.py`).
 - `.tools/` holds project-local Node 24 + web-ext + the dev Firefox profile (gitignored).
@@ -66,7 +66,20 @@ LEITOR_ENV_FILE=../.env uv run leitor # daemon (tray + mini-player + API on 127.
     (`PcmQueue.drop_chunk`) and redoing the chunk from its start (the API can't resume mid-audio).
     Status has `reconnecting`. Fatal errors (auth, 429) let queued audio play before showing the
     error. Client read timeout is 15 s (default 600 s left a stalled Wi-Fi silent for 10 min).
-    End-to-end check without the network: run the daemon with `OPENAI_BASE_URL` pointing to a
-    fake server, `QT_QPA_PLATFORM=offscreen` and `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` in a temp dir
+    End-to-end check without the network: run the daemon with `LEITOR_GEMINI_URL` pointing to a
+    fake SSE server, `QT_QPA_PLATFORM=offscreen` and `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` in a temp dir
     (its `config.json` sets another `port`).
+- Provider switch to Gemini (2026-10-14, branch `feat/gemini-tts`, v0.3.0): OpenAI's TTS stream
+    stalled server-side (connection open, no bytes for 15 s+) while the network was fine, so OpenAI
+    was removed entirely. `tts.GeminiClient` calls the Interactions API over REST (`httpx2`, no
+    SDK) with `stream: true` and `audio/l16` 24 kHz, parsing SSE `step.delta` audio events.
+    `instructions` became a short `style` (`speech_metadata`); Gemini reads text verbatim and
+    detects the language. Stall timeout is `tts.STALL_TIMEOUT` (8 s); the first retry is
+    immediate; retries/errors are logged to stderr (session journal). `Settings.load` migrates
+    OpenAI voice/model values. Errors: 401/403 → AuthError, 402/429 → QuotaError (fatal),
+    5xx and mid-stream error events → ServerError (retried).
+    Measured on the real API (2026-10-14): SSE events `interaction.created`, `status_update`,
+    `step.start`, ~3 `step.delta` audio events per 0.2 s, `step.stop`, `interaction.completed`,
+    `[DONE]`. TTFB 1.8–2.9 s (≈1 s slower than OpenAI), stream ≈4× real time, largest gap
+    0.41 s — hence the 8 s stall timeout. A 402 means the AI Studio prepaid credits ran out.
 - Ideas, not done: per-site tuning for Medway's DOM if the heuristics miss; "repeat last" shortcut.

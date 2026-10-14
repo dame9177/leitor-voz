@@ -1,4 +1,4 @@
-"""User settings and paths (XDG), plus loading the OpenAI key from a .env file."""
+"""User settings and paths (XDG), plus loading the Gemini key from a .env file."""
 
 import json
 import os
@@ -10,16 +10,20 @@ from dotenv import load_dotenv
 APP = "leitor-voz"
 DEFAULT_PORT = 47321
 
+# Gemini's prebuilt voices.
 VOICES = [
-    "marin", "cedar", "alloy", "ash", "ballad", "coral", "echo",
-    "fable", "nova", "onyx", "sage", "shimmer", "verse",
+    "Sadaltager", "Charon", "Rasalgethi", "Iapetus", "Erinome", "Schedar", "Kore",
+    "Orus", "Alnilam", "Achird", "Sulafat", "Vindemiatrix", "Despina", "Algieba",
+    "Achernar", "Gacrux", "Zephyr", "Autonoe", "Puck", "Laomedeia", "Fenrir", "Leda",
+    "Aoede", "Callirrhoe", "Umbriel", "Enceladus", "Algenib", "Pulcherrima",
+    "Zubenelgenubi", "Sadachbia",
 ]
+DEFAULT_MODEL = "gemini-3.8-flash-tts"
 SPEED_MIN, SPEED_MAX = 0.5, 2.5
 
-DEFAULT_INSTRUCTIONS = (
-    "Leia em português do Brasil, com tom claro, calmo e didático, em ritmo de estudo. "
-    "Pronuncie corretamente termos e siglas médicas; leia números, doses e unidades por extenso."
-)
+# Delivery only: Gemini reads the text verbatim and detects the language itself, and long
+# style prompts make the voice drift.
+DEFAULT_STYLE = "claro, calmo e didático, em ritmo de estudo"
 
 
 def config_dir() -> Path:
@@ -33,7 +37,7 @@ def cache_dir() -> Path:
 
 
 def load_env() -> None:
-    """Load OPENAI_API_KEY from $LEITOR_ENV_FILE or ~/.config/leitor-voz/.env.
+    """Load GEMINI_API_KEY from $LEITOR_ENV_FILE or ~/.config/leitor-voz/.env.
 
     Variables already present in the environment win.
     """
@@ -45,10 +49,10 @@ def load_env() -> None:
 
 @dataclass
 class Settings:
-    voice: str = "marin"
+    voice: str = "Sadaltager"
     speed: float = 1.0
-    model: str = "gpt-4o-mini-tts"
-    instructions: str = DEFAULT_INSTRUCTIONS
+    model: str = DEFAULT_MODEL
+    style: str = DEFAULT_STYLE
     port: int = DEFAULT_PORT
     cache_mb: int = 300
     output_device: str = ""  # audio output id; "" = automatic
@@ -66,8 +70,8 @@ class Settings:
             self.speed = round(speed, 2)
         if "output_device" in data:
             self.output_device = str(data["output_device"])[:300]
-        if "instructions" in data:
-            self.instructions = str(data["instructions"])[:2000]
+        if "style" in data:
+            self.style = str(data["style"])[:300]
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":
@@ -81,6 +85,11 @@ class Settings:
         for key, value in data.items():
             if key in known:
                 setattr(settings, key, value)
+        # Settings saved by the OpenAI version (≤ 0.2): its voices and model don't exist here.
+        if settings.voice not in VOICES:
+            settings.voice = cls.voice
+        if not str(settings.model).startswith("gemini"):
+            settings.model = DEFAULT_MODEL
         return settings
 
     def save(self, path: Path | None = None) -> None:

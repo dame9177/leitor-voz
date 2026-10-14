@@ -109,7 +109,7 @@ class MiniPlayer(QWidget):
         output_row.addWidget(QLabel("🎧"))
         output_row.addWidget(self.output, 1)
 
-        footer = QLabel("Voz gerada por IA (OpenAI)")
+        footer = QLabel("Voz gerada por IA (Google Gemini)")
         footer.setStyleSheet("color: #6f8279; font-size: 10px;")
 
         layout = QVBoxLayout(card)

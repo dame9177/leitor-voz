@@ -1,4 +1,4 @@
-// Bridge between pages and the local desktop app (which holds the OpenAI key).
+// Bridge between pages and the local desktop app (which holds the Gemini key).
 // Content scripts can't call 127.0.0.1 themselves: their requests carry the
 // page's Origin, which the app rejects on purpose.
 

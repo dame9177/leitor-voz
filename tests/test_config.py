@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from leitor.config import Settings
@@ -6,10 +8,10 @@ from leitor.config import Settings
 def test_roundtrip(tmp_path):
     path = tmp_path / "config.json"
     s = Settings()
-    s.update({"voice": "cedar", "speed": 1.25})
+    s.update({"voice": "Puck", "speed": 1.25})
     s.save(path)
     loaded = Settings.load(path)
-    assert loaded.voice == "cedar"
+    assert loaded.voice == "Puck"
     assert loaded.speed == 1.25
 
 
@@ -26,7 +28,20 @@ def test_update_validates():
         s.update({"voice": "robocop"})
     with pytest.raises(ValueError):
         s.update({"speed": 9})
-    assert s.voice == "marin" and s.speed == 1.0
+    assert s.voice == "Sadaltager" and s.speed == 1.0
+
+
+def test_openai_settings_are_migrated(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({
+        "voice": "marin", "speed": 1.25, "model": "gpt-4o-mini-tts",
+        "instructions": "Leia em português do Brasil…", "output_device": "x",
+    }))
+    s = Settings.load(path)
+    assert s.voice == "Sadaltager"
+    assert s.model == "gemini-3.8-flash-tts"
+    assert s.style == Settings().style
+    assert s.speed == 1.25 and s.output_device == "x"
 
 
 def test_output_device_roundtrip(tmp_path):

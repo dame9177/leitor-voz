@@ -1,13 +1,13 @@
 # Leitor de voz
 
-> **English summary.** A study companion for Linux (X11): hover a paragraph in Firefox and click 🔊, or select any text, and hear it read aloud with OpenAI's `gpt-4o-mini-tts`. A small desktop app (Python/Qt) keeps your API key, streams and caches the audio, and shows a mini-player. A Firefox extension adds the hover button, a selection bubble, a context-menu entry and highlights the paragraph being read. A global shortcut reads the selection in any other app. MIT licensed.
+> **English summary.** A study companion for Linux (X11): hover a paragraph in Firefox and click 🔊, or select any text, and hear it read aloud with Google's `gemini-3.8-flash-tts`. A small desktop app (Python/Qt) keeps your API key, streams and caches the audio, and shows a mini-player. A Firefox extension adds the hover button, a selection bubble, a context-menu entry and highlights the paragraph being read. A global shortcut reads the selection in any other app. MIT licensed.
 
 Ouça o que você está estudando. No Firefox:
 - passe o mouse sobre um parágrafo e clique no **🔊**;
 - ou selecione um trecho e clique em **🔊 Ler**;
 - ou use o clique direito → **Ler em voz alta**.
 
-O texto é lido com a voz do modelo `gpt-4o-mini-tts` da OpenAI, e o parágrafo em leitura fica destacado na página.
+O texto é lido com a voz do modelo `gemini-3.8-flash-tts` do Google, e o parágrafo em leitura fica destacado na página.
 
 Foi feito para plataformas de questões (enunciado + alternativas), mas funciona em qualquer site. Fora do navegador, um atalho de teclado lê o texto selecionado em qualquer programa.
 
@@ -17,16 +17,16 @@ Foi feito para plataformas de questões (enunciado + alternativas), mas funciona
 Firefox ── extensão (🔊 no hover, bolha na seleção, destaque)
    │  HTTP só em 127.0.0.1
    ▼
-App desktop (Python + Qt) ── OpenAI TTS (streaming PCM) ── alto-falante
+App desktop (Python + Qt) ── Gemini TTS (streaming PCM) ── alto-falante
    ├─ ícone na barra superior + mini-player (pausar, pular, velocidade, voz)
    └─ cache em disco: reouvir um trecho não custa nada
 ```
 
-- **A chave da OpenAI fica só no app desktop.** A extensão não tem chave nenhuma e só fala com `127.0.0.1`.
+- **A chave do Gemini fica só no app desktop.** A extensão não tem chave nenhuma e só fala com `127.0.0.1`.
 - O app recusa pedidos vindos de páginas web, por checagem de `Origin`, `Host` e `Content-Type`. Assim, nenhum site consegue usar o seu saldo.
 - O áudio começa a tocar em ~1–2 s, porque o primeiro pedaço é curto e chega em streaming. Os pedaços seguintes são sintetizados enquanto o anterior toca, com no máximo ~30 s de folga, para não gastar à toa se você parar.
 - A velocidade (0,75×–2×) é aplicada localmente, sem mudar o tom, e pode ser trocada no meio da leitura.
-- Se a conexão cair ou travar no meio da leitura, o que já chegou continua tocando e o app tenta de novo sozinho (o mini-player mostra "Sem conexão, tentando de novo…"). Quando a rede volta, ele retoma do começo do pedaço interrompido, repetindo só o que você já tinha ouvido dele.
+- Se a conexão cair ou o servidor travar no meio da leitura (8 s sem receber áudio), o que já chegou continua tocando e o app tenta de novo sozinho (o mini-player mostra "Sem conexão, tentando de novo…"). Ele retoma do começo do pedaço interrompido, repetindo só o que você já tinha ouvido dele. Cada nova tentativa fica registrada no log do app (`journalctl --user -t leitor-voz.desktop` quando ele é aberto pelo menu).
 
 ## Requisitos
 
@@ -34,7 +34,7 @@ App desktop (Python + Qt) ── OpenAI TTS (streaming PCM) ── alto-falante
 - Firefox 142 ou mais recente.
 - [uv](https://docs.astral.sh/uv/) e Python 3.11+.
 - Bibliotecas do sistema: `sudo apt install libxcb-cursor0 xclip`. O Qt 6 precisa da primeira para abrir janelas no X11.
-- Uma chave da API da OpenAI com saldo.
+- Uma chave da API do Gemini ([Google AI Studio](https://aistudio.google.com/apikey)) com faturamento ativo ou créditos pré-pagos.
 
 ## Instalação
 
@@ -43,7 +43,7 @@ git clone https://github.com/dame9177/leitor-voz.git
 cd leitor-voz
 uv sync
 mkdir -p ~/.config/leitor-voz
-echo 'OPENAI_API_KEY=sk-...' > ~/.config/leitor-voz/.env   # sua chave
+echo 'GEMINI_API_KEY=...' > ~/.config/leitor-voz/.env   # sua chave
 chmod 600 ~/.config/leitor-voz/.env
 ```
 
@@ -75,6 +75,8 @@ uv sync
 
 Depois feche o app (ícone → **Sair**) e abra de novo pelo menu de aplicativos. Só reinstale a extensão se a release disser que ela mudou.
 
+**Vindo da 0.2 (OpenAI)?** A partir da 0.3 o app usa só o Gemini. Ponha a `GEMINI_API_KEY` no mesmo `.env` da chave antiga (a `OPENAI_API_KEY` pode sair). A voz e o modelo salvos são trocados sozinhos pelos padrões do Gemini; o campo `instructions` virou `style`.
+
 **Atalho global (opcional):** Ctrl+Alt+L lê a seleção em qualquer programa.
 
 ```bash
@@ -101,19 +103,19 @@ Configurações ficam em `~/.config/leitor-voz/config.json`:
 
 | Campo | O que é |
 |---|---|
-| `voice` | Voz. `marin` e `cedar` são as recomendadas. |
+| `voice` | Voz (uma das 30 do Gemini). Padrão: `Sadaltager`. Outras boas para estudo: `Charon`, `Rasalgethi`, `Iapetus`, `Kore`. |
 | `speed` | Velocidade. |
 | `model` | Modelo de voz. |
-| `instructions` | Como a voz deve ler. Padrão: português do Brasil, tom didático, siglas médicas bem pronunciadas. |
+| `style` | Como a voz deve ler, em poucas palavras. Padrão: "claro, calmo e didático, em ritmo de estudo". O idioma é detectado sozinho, e o texto é lido literalmente. |
 | `port` | Porta local. Padrão: 47321. |
 | `cache_mb` | Tamanho do cache. |
 | `output_device` | Saída de áudio escolhida. Vazio = automático. |
 
 ## Custos e privacidade
 
-- O texto que você manda ler é enviado à OpenAI pelo app no seu computador. Nada mais sai da máquina.
-- O custo é o da API de TTS da OpenAI, cobrado por minuto de áudio gerado. Uma questão típica custa uma fração de centavo de dólar. Trechos repetidos vêm do cache, em `~/.cache/leitor-voz`.
-- **A voz é gerada por IA**, não é uma voz humana. A política de uso da OpenAI exige deixar isso claro.
+- O texto que você manda ler é enviado ao Google (API do Gemini) pelo app no seu computador. Nada mais sai da máquina.
+- O custo é o da API de TTS do Gemini, conforme a tabela de preços do Google AI Studio. Trechos repetidos vêm do cache, em `~/.cache/leitor-voz`.
+- **A voz é gerada por IA**, não é uma voz humana.
 
 ## Desenvolvimento
 
@@ -133,7 +135,7 @@ uv run leitor                     # app
 ```
 src/leitor/
   chunker.py   divide o texto em pedaços (o 1º curto, para começar rápido)
-  tts.py       OpenAI TTS em streaming PCM + cache LRU em disco
+  tts.py       Gemini TTS em streaming PCM + cache LRU em disco
   audio.py     fila de PCM por trecho + time-stretch (WSOLA) para a velocidade
   player.py    síntese em thread + reprodução com QAudioSink
   server.py    API HTTP local (/read, /control, /settings, /status)
