@@ -31,7 +31,7 @@ def test_update_validates():
     assert s.voice == "Sadaltager" and s.speed == 1.0
 
 
-def test_openai_settings_are_migrated(tmp_path):
+def test_v01_openai_settings_are_migrated(tmp_path):
     path = tmp_path / "config.json"
     path.write_text(json.dumps({
         "voice": "marin", "speed": 1.25, "model": "gpt-4o-mini-tts",

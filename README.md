@@ -24,7 +24,7 @@ App desktop (Python + Qt) ── Gemini TTS (streaming PCM) ── alto-falante
 
 - **A chave do Gemini fica só no app desktop.** A extensão não tem chave nenhuma e só fala com `127.0.0.1`.
 - O app recusa pedidos vindos de páginas web, por checagem de `Origin`, `Host` e `Content-Type`. Assim, nenhum site consegue usar o seu saldo.
-- O áudio começa a tocar em ~1–2 s, porque o primeiro pedaço é curto e chega em streaming. Os pedaços seguintes são sintetizados enquanto o anterior toca, com no máximo ~30 s de folga, para não gastar à toa se você parar.
+- O áudio começa a tocar em ~2 s, porque o primeiro pedaço é curto e chega em streaming. Os pedaços seguintes são sintetizados enquanto o anterior toca, com no máximo ~30 s de folga, para não gastar à toa se você parar.
 - A velocidade (0,75×–2×) é aplicada localmente, sem mudar o tom, e pode ser trocada no meio da leitura.
 - Se a conexão cair ou o servidor travar no meio da leitura (8 s sem receber áudio), o que já chegou continua tocando e o app tenta de novo sozinho (o mini-player mostra "Sem conexão, tentando de novo…"). Ele retoma do começo do pedaço interrompido, repetindo só o que você já tinha ouvido dele. Cada nova tentativa fica registrada no log do app (`journalctl --user -t leitor-voz.desktop` quando ele é aberto pelo menu).
 
@@ -73,9 +73,7 @@ git pull
 uv sync
 ```
 
-Depois feche o app (ícone → **Sair**) e abra de novo pelo menu de aplicativos. Só reinstale a extensão se a release disser que ela mudou.
-
-**Vindo da 0.2 (OpenAI)?** A partir da 0.3 o app usa só o Gemini. Ponha a `GEMINI_API_KEY` no mesmo `.env` da chave antiga (a `OPENAI_API_KEY` pode sair). A voz e o modelo salvos são trocados sozinhos pelos padrões do Gemini; o campo `instructions` virou `style`.
+Depois feche o app (ícone → **Sair**) e abra de novo pelo menu de aplicativos. Leia as notas da [release](https://github.com/dame9177/leitor-voz/releases): elas dizem se a extensão mudou e se há algo a configurar.
 
 **Atalho global (opcional):** Ctrl+Alt+L lê a seleção em qualquer programa.
 

@@ -85,7 +85,7 @@ class Settings:
         for key, value in data.items():
             if key in known:
                 setattr(settings, key, value)
-        # Settings saved by the OpenAI version (≤ 0.2): its voices and model don't exist here.
+        # config.json from v0.1 (OpenAI TTS): its voices and model don't exist here.
         if settings.voice not in VOICES:
             settings.voice = cls.voice
         if not str(settings.model).startswith("gemini"):
